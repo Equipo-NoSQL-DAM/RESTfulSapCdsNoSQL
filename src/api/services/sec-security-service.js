@@ -858,136 +858,130 @@ async function CrudValues(req) {
           console.error("Error en la agregación con $lookup:", error.message);
           throw error;
         }
+        
+case "create":
+        try {
+          const {
+            COMPANYID,
+            CEDIID,
+            LABELID,
+            VALUEPAID,
+            VALUEID,
+            VALUE,
+            ALIAS,
+            SEQUENCE,
+            IMAGE,
+            VALUESAPID,
+            DESCRIPTION,
+            ROUTE,
+            ACTIVED = true,
+            DELETED = false,
+            reguser,
+          } = req?.req?.body?.values;
 
-     case "create":
-  try {
-    const valuesArray = req?.req?.body?.values;
-    const currentDate = new Date();
+          const currentDate = new Date();
 
-    if (!Array.isArray(valuesArray) || valuesArray.length === 0) {
-      throw new Error("Se debe proporcionar un arreglo de valores en 'values'.");
-    }
+          const detailRowReg = [
+            {
+              CURRENT: false,
+              REGDATE: currentDate,
+              REGTIME: currentDate,
+              REGUSER: reguser,
+            },
+            {
+              CURRENT: true,
+              REGDATE: currentDate,
+              REGTIME: currentDate,
+              REGUSER: reguser,
+            },
+          ];
 
-    const validLabels = [
-      "IdApplications",
-      "IdViews",
-      "IdProcesses",
-      "IdRoles",
-      "IdPrivileges",
-    ];
+          const validLabels = [
+            "IdApplications",
+            "IdViews",
+            "IdProcesses",
+            "IdRoles",
+            "IdPrivileges",
+          ];
 
-    const newZTValues = [];
+          if (!validLabels.includes(LABELID)) {
+            throw new Error(
+              `LABELID debe ser uno de los siguientes: ${validLabels.join(
+                ", "
+              )}`
+            );
+          }
 
-    for (const valueObj of valuesArray) {
-      const {
-        COMPANYID,
-        CEDIID,
-        LABELID,
-        VALUEPAID,
-        VALUEID,
-        VALUE,
-        ALIAS,
-        SEQUENCE,
-        IMAGE,
-        VALUESAPID,
-        DESCRIPTION,
-        ROUTE,
-        ACTIVED = true,
-        DELETED = false,
-        reguser,
-      } = valueObj;
+          // Verificar si ya existe un VALUEID en la colección
+          const valueExists = await mongoose.connection
+            .collection("ZTVALUES")
+            .findOne({ VALUEID });
 
-      if (!validLabels.includes(LABELID)) {
-        throw new Error(
-          `LABELID "${LABELID}" debe ser uno de los siguientes: ${validLabels.join(", ")}`
-        );
-      }
+          if (valueExists) {
+            throw new Error(`Ya existe un registro con VALUEID "${VALUEID}".`);
+          }
 
-      const valueExists = await mongoose.connection
-        .collection("ZTVALUES")
-        .findOne({ VALUEID });
+          if (LABELID === "IdApplications" && VALUEPAID) {
+            throw new Error(
+              "VALUEPAID debe estar vacío cuando LABELID es IdApplications, ya que no tiene padre."
+            );
+          }
 
-      if (valueExists) {
-        throw new Error(`Ya existe un registro con VALUEID "${VALUEID}".`);
-      }
+          if (LABELID !== "IdApplications") {
+            const labelIndex = validLabels.indexOf(LABELID);
+            const parentLabel = validLabels[labelIndex - 1];
 
-      if (LABELID === "IdApplications" && VALUEPAID) {
-        throw new Error(
-          "VALUEPAID debe estar vacío cuando LABELID es IdApplications, ya que no tiene padre."
-        );
-      }
+            const regex = new RegExp(`^${parentLabel}-[A-Za-z0-9]+$`);
+            if (!regex.test(VALUEPAID)) {
+              throw new Error(
+                `VALUEPAID debe seguir el formato "${parentLabel}-<IdRegistro>" sin espacios alrededor del guion.`
+              );
+            }
 
-      if (LABELID !== "IdApplications") {
-        const labelIndex = validLabels.indexOf(LABELID);
-        const parentLabel = validLabels[labelIndex - 1];
+            const parentId = VALUEPAID.split("-")[1];
+            const parentExists = await mongoose.connection
+              .collection("ZTVALUES")
+              .findOne({ LABELID: parentLabel, VALUEID: parentId });
 
-        const regex = new RegExp(`^${parentLabel}-[A-Za-z0-9]+$`);
-        if (!regex.test(VALUEPAID)) {
-          throw new Error(
-            `VALUEPAID debe seguir el formato "${parentLabel}-<IdRegistro>" sin espacios.`
-          );
+            if (!parentExists) {
+              throw new Error(
+                `El ID padre especificado (${parentId}) no existe en la colección ZTVALUES como ${parentLabel}.`
+              );
+            }
+          }
+
+          const newZTValue = {
+            COMPANYID,
+            CEDIID,
+            LABELID: LABELID || "",
+            VALUEPAID: VALUEPAID || "",
+            VALUEID: VALUEID || "",
+            VALUE: VALUE || "",
+            ALIAS: ALIAS || "",
+            SEQUENCE: SEQUENCE || 0,
+            IMAGE: IMAGE || "",
+            VALUESAPID: VALUESAPID || "",
+            DESCRIPTION: DESCRIPTION || "",
+            ROUTE: ROUTE || "",
+            DETAIL_ROW: {
+              ACTIVED,
+              DELETED,
+              DETAIL_ROW_REG: detailRowReg,
+            },
+          };
+
+          const result = await mongoose.connection
+            .collection("ZTVALUES")
+            .insertOne(newZTValue);
+
+          return {
+            message: "ZTValue creado exitosamente",
+            ztvalueId: newZTValue,
+          };
+        } catch (error) {
+          throw new Error(error.message);
         }
 
-        const parentId = VALUEPAID.split("-")[1];
-        const parentExists = await mongoose.connection
-          .collection("ZTVALUES")
-          .findOne({ LABELID: parentLabel, VALUEID: parentId });
-
-        if (!parentExists) {
-          throw new Error(
-            `El ID padre especificado (${parentId}) no existe como ${parentLabel}.`
-          );
-        }
-      }
-
-      const detailRowReg = [
-        {
-          CURRENT: false,
-          REGDATE: currentDate,
-          REGTIME: currentDate,
-          REGUSER: reguser,
-        },
-        {
-          CURRENT: true,
-          REGDATE: currentDate,
-          REGTIME: currentDate,
-          REGUSER: reguser,
-        },
-      ];
-
-      newZTValues.push({
-        COMPANYID,
-        CEDIID,
-        LABELID,
-        VALUEPAID: VALUEPAID || "",
-        VALUEID,
-        VALUE,
-        ALIAS: ALIAS || "",
-        SEQUENCE: SEQUENCE || 0,
-        IMAGE: IMAGE || "",
-        VALUESAPID: VALUESAPID || "",
-        DESCRIPTION: DESCRIPTION || "",
-        ROUTE: ROUTE || "",
-        DETAIL_ROW: {
-          ACTIVED,
-          DELETED,
-          DETAIL_ROW_REG: detailRowReg,
-        },
-      });
-    }
-
-    const result = await mongoose.connection
-      .collection("ZTVALUES")
-      .insertMany(newZTValues);
-
-    return {
-      message: "ZTValues creados exitosamente",
-      insertedCount: result.insertedCount,
-      insertedIds: result.insertedIds,
-    };
-  } catch (error) {
-    throw new Error(error.message);
-  }
 
 
       case "update":
@@ -1003,6 +997,8 @@ async function CrudValues(req) {
 
           // Desestructuración de las propiedades del body
           const {
+            COMPANYID,
+            CEDIID,
             LABELID,
             VALUEPAID,
             VALUE,
@@ -1083,6 +1079,8 @@ async function CrudValues(req) {
 
           // Construcción dinámica del objeto de actualización
           const updateFields = {};
+          if (COMPANYID) updateFields.COMPANYID = COMPANYID;
+          if (CEDIID) updateFields.CEDIID = CEDIID;
           if (LABELID) updateFields.LABELID = LABELID;
           if (VALUEPAID) updateFields.VALUEPAID = VALUEPAID;
           if (VALUE) updateFields.VALUE = VALUE;
@@ -1494,13 +1492,7 @@ async function CrudLabels(req) {
             // Obtener todos los labels activos
             result = await mongoose.connection
               .collection("ZTLABELS")
-              .aggregate([
-                {
-                  $match: {
-                    "DETAIL_ROW.ACTIVED": true, // Filtra los labels activos
-                  },
-                },
-              ])
+              .aggregate([])
               .toArray();
           } else {
             // Obtener un label específico con sus datos
@@ -1523,8 +1515,8 @@ async function CrudLabels(req) {
       case "create":
         try {
           const {
-            COMPANYID,
-            CEDIID,
+            COMPANYID = 0,
+            CEDIID = 0,
             LABELID,
             LABEL,
             INDEX,
@@ -1533,8 +1525,12 @@ async function CrudLabels(req) {
             SEQUENCE,
             IMAGE,
             DESCRIPTION,
-            ACTIVED = true,
-            DELETED = false,
+            DETAIL_ROW: [
+              {
+                ACTIVED,
+                DELETED = false,
+              }
+            ],
             reguser,
           } = req?.req?.body?.labels;
 
@@ -1596,6 +1592,8 @@ async function CrudLabels(req) {
           }
 
           const {
+            COMPANYID,
+            CEDIID,
             LABEL,
             INDEX,
             COLLECTION,
@@ -1621,6 +1619,8 @@ async function CrudLabels(req) {
           }
 
           const updateFields = {};
+          if (COMPANYID) updateFields.COMPANYID = COMPANYID;
+          if (CEDIID) updateFields.CEDIID = CEDIID;
           if (LABEL) updateFields.LABEL = LABEL;
           if (INDEX) updateFields.INDEX = INDEX;
           if (COLLECTION) updateFields.COLLECTION = COLLECTION;
