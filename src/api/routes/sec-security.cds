@@ -36,7 +36,7 @@ service securityRouter @(path: '/api/security') {
     @path            : 'deleteAny'
     action deleteAny()                    returns array of entusers;
 
-    @Core.Descripcion: 'crud-labels'
+    @Core.Description: 'crud-labels'
     @path            : 'crudLabels'
     action crudLabels(labels : entlabels) returns array of entlabels;
 

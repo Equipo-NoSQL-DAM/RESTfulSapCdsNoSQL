@@ -646,6 +646,7 @@ async function CrudUsers(req) {
                 message: `El ROLEID '${newRoleId}' no existe en ZTROLES.`,
               };
             }
+            
 
             const userData = await mongoose.connection
               .collection("ZTUSERS")
