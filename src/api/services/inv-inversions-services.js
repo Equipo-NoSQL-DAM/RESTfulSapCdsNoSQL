@@ -16,12 +16,12 @@ async function crudSimulation(req) {
       case "get":
         try {
           let result;
-          const simulationId = req?.req?.query?.idSimulation;
-          const simulation = req?.req?.query?.simulationName;
-          const strategieid = req?.req?.query?.idStrategy;
-          const symbol = req?.req?.query?.symbol;
+          const simulationId = req?.req?.query?.SIMULATIONID;
+          const simulation = req?.req?.query?.SIMULATIONNAME;
+          const strategieid = req?.req?.query?.STRATEGYID;
+          const symbol = req?.req?.query?.SYMBOL;
           //
-          const minBalance = Number(req.req.query.minBalance); // el valor que pasa el usuario
+          const REAL_PROFIT = Number(req.req.query.REAL_PROFIT); // el valor que pasa el usuario
 
           const baseFilter = { "DETAIL_ROW.ACTIVED": true };
 
@@ -45,12 +45,12 @@ async function crudSimulation(req) {
               .collection("SIMULATION")
               .find({ ...baseFilter, idStrategy: strategieid })
               .toArray();
-          } else if (minBalance) {
+          } else if (REAL_PROFIT) {
             result = await mongoose.connection
               .collection("SIMULATION")
               .find({
                 ...baseFilter,
-                "summary.finalBalance": { $gt: Number(minBalance) },
+                "SUMMARY.REAL_PROFIT": { $gt: Number(REAL_PROFIT) },
               })
               .toArray();
           } else if (symbol) {
