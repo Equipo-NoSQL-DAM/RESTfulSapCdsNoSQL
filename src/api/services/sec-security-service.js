@@ -658,121 +658,118 @@ async function CrudUsers(req) {
 }
 
 async function DeleteRecord(req) {
-  try {
-    // Extraer los parámetros de la request
-    const { roleid, valueid, labelid, userid, borrado } = req?.req?.query;
+    try {
+        // Extraer los parámetros de la request
+        const { roleid, valueid, labelid, userid, borrado } = req?.req?.query;
 
-    // Validación: al menos un ID debe estar presente
-    if (!labelid && !userid && !roleid && !valueid) {
-      throw new Error("Se debe proporcionar al menos un ID para eliminar");
-    }
-
-    console.log("Intentando eliminar:", {
-      userid,
-      roleid,
-      labelid,
-      valueid,
-      borrado,
-    });
-
-    // Función genérica para simular eliminación (actualización de flags)
-    const deleteFromCollection = async (collection, fieldName, value) => {
-      const filter = { [fieldName]: value };
- 
-      const existingDoc = await mongoose.connection
-        .collection(collection)
-        .findOne(filter);
-
-      if (!existingDoc) {
-        throw new Error(
-          `No se encontró el registro en la colección ${collection}`
-        );
-      }
-
-      const deletedStatus = existingDoc.DETAIL_ROW?.DELETED;
-      const activeStatus = existingDoc.DETAIL_ROW?.ACTIVED;
-
-
-     // Construimos el registro de auditoría
-      const regEntry = {
-        CURRENT: true,
-        REGDATE: new Date(),
-        REGTIME: new Date(),
-        REGUSER: "USER_TEST",        
-      };
-
-      if (borrado === "fisic") {
-        // Borrado físico
-        const result = await mongoose.connection
-          .collection(collection)
-          .deleteOne(filter);
-        if (result.deletedCount === 0) {
-          throw new Error(
-            `No se pudo eliminar físicamente el registro en ${collection}`
-          );
+        // Validación: al menos un ID debe estar presente
+        if (!labelid && !userid && !roleid && !valueid) {
+            throw new Error("Se debe proporcionar al menos un ID para eliminar o activar");
         }
-        return { message: `Registro eliminado físicamente de ${collection}` };
-      } else {
-              // Verificación de estado previo para evitar eliminar nuevamente
-      if (
-        deletedStatus === true &&
-        activeStatus === false
-      ) {
-        throw new Error(
-          `El registro en la colección ${collection} ya fue eliminado lógicamente anteriormente`
-        );
-      }
 
-        await mongoose.connection
-        .collection(collection)
-        .updateOne(
-          filter,
-          {
-            $set: {
-              "DETAIL_ROW.DETAIL_ROW_REG.$[].CURRENT": false
+        console.log("Intentando eliminar o activar:", { userid, roleid, labelid, valueid, borrado });
+
+        // Función genérica para simular eliminación o activación (actualización de flags)
+        const updateCollectionStatus = async (collection, fieldName, value) => {
+            const filter = { [fieldName]: value };
+
+            const existingDoc = await mongoose.connection.collection(collection).findOne(filter);
+
+            if (!existingDoc) {
+                throw new Error(`No se encontró el registro en la colección ${collection}`);
             }
-          }
-        );
-        const result = await mongoose.connection
-          .collection(collection)
-          .updateOne(
-            filter,
-            {
-              $set: {
-                "DETAIL_ROW.ACTIVED": false,
-                "DETAIL_ROW.DELETED": true
-              },
-              $push: {
-                "DETAIL_ROW.DETAIL_ROW_REG": regEntry
-              }
+
+            const deletedStatus = existingDoc.DETAIL_ROW?.DELETED;
+            const activeStatus = existingDoc.DETAIL_ROW?.ACTIVED;
+
+            // Construimos el registro de auditoría
+            const regEntry = {
+                CURRENT: true,
+                REGDATE: new Date(),
+                REGTIME: new Date(),
+                REGUSER: "USER_TEST",
+            };
+
+            if (borrado === "fisic") {
+                // Borrado físico
+                const result = await mongoose.connection.collection(collection).deleteOne(filter);
+                if (result.deletedCount === 0) {
+                    throw new Error(`No se pudo eliminar físicamente el registro en ${collection}`);
+                }
+                return { message: `Registro eliminado físicamente de ${collection}` };
+            } else if (borrado === "activar") {
+                // Activación del registro
+                if (activeStatus === true && deletedStatus === false) {
+                    throw new Error(`El registro en la colección ${collection} ya está activo.`);
+                }
+
+                const result = await mongoose.connection.collection(collection).updateOne(
+                    filter,
+                    {
+                        $set: {
+                            "DETAIL_ROW.ACTIVED": true,
+                            "DETAIL_ROW.DELETED": false,
+                        },
+                        $push: {
+                            "DETAIL_ROW.DETAIL_ROW_REG": regEntry,
+                        },
+                    }
+                );
+
+                if (result.modifiedCount === 0) {
+                    throw new Error(`No se pudo activar el registro en la colección ${collection}`);
+                }
+
+                return { message: `Registro activado en ${collection}` };
+            } else {
+                // Desactivación lógica del registro
+                if (deletedStatus === true && activeStatus === false) {
+                    throw new Error(`El registro en la colección ${collection} ya esta inactivo`);
+                }
+
+                await mongoose.connection.collection(collection).updateOne(
+                    filter,
+                    {
+                        $set: {
+                            "DETAIL_ROW.DETAIL_ROW_REG.$[].CURRENT": false,
+                        },
+                    }
+                );
+
+                const result = await mongoose.connection.collection(collection).updateOne(
+                    filter,
+                    {
+                        $set: {
+                            "DETAIL_ROW.ACTIVED": false,
+                            "DETAIL_ROW.DELETED": true,
+                        },
+                        $push: {
+                            "DETAIL_ROW.DETAIL_ROW_REG": regEntry,
+                        },
+                    }
+                );
+
+                if (result.modifiedCount === 0) {
+                    throw new Error(`No se pudo actualizar el registro en la colección ${collection}`);
+                }
+
+                return { message: `Registro marcado como eliminado lógicamente en ${collection}` };
             }
-          );
-        if (result.modifiedCount === 0) {
-          throw new Error(
-            `No se pudo actualizar el registro en la colección ${collection}`
-          );
-        }
-        return {
-          message: `Registro marcado como eliminado lógicamente en ${collection}`
         };
-      }
-    };
 
-    // Verificar y aplicar eliminación
-    if (labelid)
-      return await deleteFromCollection("ZTLABELS", "LABELID", labelid);
-    if (userid) return await deleteFromCollection("ZTUSERS", "USERID", userid);
-    if (roleid) return await deleteFromCollection("ZTROLES", "ROLEID", roleid);
-    if (valueid)
-      return await deleteFromCollection("ZTVALUES", "VALUEID", valueid);
-  } catch (error) {
-    console.error("Error al eliminar el registro:", error.message);
-    throw {
-      code: 400,
-      message: error.message,
-      "@Common.numericSeverity": 4,
-    };
-  }
+        // Verificar y aplicar eliminación o activación
+        if (labelid) return await updateCollectionStatus("ZTLABELS", "LABELID", labelid);
+        if (userid) return await updateCollectionStatus("ZTUSERS", "USERID", userid);
+        if (roleid) return await updateCollectionStatus("ZTROLES", "ROLEID", roleid);
+        if (valueid) return await updateCollectionStatus("ZTVALUES", "VALUEID", valueid);
+    } catch (error) {
+        console.error("Error al actualizar el registro:", error.message);
+        throw {
+            code: 400,
+            message: error.message,
+            "@Common.numericSeverity": 4,
+        };
+    }
 }
 
 async function CrudValues(req) {
@@ -794,13 +791,9 @@ async function CrudValues(req) {
           if (!labelid && !valueid) {
             // Caso 1: No hay labelid ni valueid
             result = await mongoose.connection
-              .collection("ZTVALUES") // ✅ Cambiado a la colección correcta
+              .collection("ZTVALUES") 
               .aggregate([
-                {
-                  $match: {
-                    "DETAIL_ROW.ACTIVED": true, // Filtra los valores activos
-                  },
-                },
+                { $match: {} }
               ])
               .toArray();
           } else if (labelid && !valueid) {
@@ -810,8 +803,8 @@ async function CrudValues(req) {
               .aggregate([
                 {
                   $match: {
-                    LABELID: labelid,
-                    "DETAIL_ROW.ACTIVED": true, // Solo traer registros activos
+                    LABELID: labelid, // Solo traer registros activos
+                    $or: [{ "DETAIL_ROW.ACTIVED": true }, { "DETAIL_ROW.ACTIVED": false }] 
                   },
                 },
               ])
@@ -824,6 +817,7 @@ async function CrudValues(req) {
               .aggregate([
                 {
                   $match: { LABELID: labelid },
+                  $or: [{ "DETAIL_ROW.ACTIVED": true }, { "DETAIL_ROW.ACTIVED": false }] 
                 },
                 {
                   $lookup: {
@@ -841,8 +835,8 @@ async function CrudValues(req) {
                         as: "val",
                         cond: {
                           $and: [
-                            { $eq: ["$$val.VALUEID", valueid] },
-                            { $eq: ["$$val.DETAIL_ROW.ACTIVED", true] },
+                            { $eq: ["$$val.VALUEID", valueid] }
+                            
                           ],
                         },
                       },
@@ -859,128 +853,163 @@ async function CrudValues(req) {
           throw error;
         }
         
-case "create":
-        try {
-          const {
-            COMPANYID,
-            CEDIID,
-            LABELID,
-            VALUEPAID,
-            VALUEID,
-            VALUE,
-            ALIAS,
-            SEQUENCE,
-            IMAGE,
-            VALUESAPID,
-            DESCRIPTION,
-            ROUTE,
-            ACTIVED = true,
-            DELETED = false,
-            reguser,
-          } = req?.req?.body?.values;
+      case "create":
+              try {
+                const {
+                  COMPANYID,
+                  CEDIID,
+                  LABELID,
+                  VALUEPAID,
+                  VALUEID,
+                  VALUE,
+                  ALIAS,
+                  SEQUENCE,
+                  IMAGE,
+                  VALUESAPID,
+                  DESCRIPTION,
+                  ROUTE,
+                  ACTIVED = true,
+                  DELETED = false,
+                  reguser,
+                } = req?.req?.body?.values;
 
-          const currentDate = new Date();
+                const currentDate = new Date();
 
-          const detailRowReg = [
-            {
-              CURRENT: false,
-              REGDATE: currentDate,
-              REGTIME: currentDate,
-              REGUSER: reguser,
-            },
-            {
-              CURRENT: true,
-              REGDATE: currentDate,
-              REGTIME: currentDate,
-              REGUSER: reguser,
-            },
-          ];
+                const detailRowReg = [
+                  {
+                    CURRENT: false,
+                    REGDATE: currentDate,
+                    REGTIME: currentDate,
+                    REGUSER: reguser,
+                  },
+                  {
+                    CURRENT: true,
+                    REGDATE: currentDate,
+                    REGTIME: currentDate,
+                    REGUSER: reguser,
+                  },
+                ];
 
-          const validLabels = [
-            "IdApplications",
-            "IdViews",
-            "IdProcesses",
-            "IdRoles",
-            "IdPrivileges",
-          ];
+                const validLabels = [
+                  "IdApplications",
+                  "IdViews",
+                  "IdProcesses",
+                  "IdRoles",
+                  "IdPrivileges",
+                ];
 
-          if (!validLabels.includes(LABELID)) {
-            throw new Error(
-              `LABELID debe ser uno de los siguientes: ${validLabels.join(
-                ", "
-              )}`
-            );
-          }
+                // if (!validLabels.includes(LABELID)) {
+                //   throw new Error(
+                //     `LABELID debe ser uno de los siguientes: ${validLabels.join(
+                //       ", "
+                //     )}`
+                //   );
+                // }
 
-          // Verificar si ya existe un VALUEID en la colección
-          const valueExists = await mongoose.connection
-            .collection("ZTVALUES")
-            .findOne({ VALUEID });
+                // Si LABELID no está en validLabels, insertamos directamente sin aplicar restricciones adicionales.
+                if (!validLabels.includes(LABELID)) {
+                    const newZTValue = {
+                        COMPANYID,
+                        CEDIID,
+                        LABELID: LABELID || "",
+                        VALUEPAID: VALUEPAID || "",
+                        VALUEID: VALUEID || "",
+                        VALUE: VALUE || "",
+                        ALIAS: ALIAS || "",
+                        SEQUENCE: SEQUENCE || 0,
+                        IMAGE: IMAGE || "",
+                        VALUESAPID: VALUESAPID || "",
+                        DESCRIPTION: DESCRIPTION || "",
+                        ROUTE: ROUTE || "",
+                        DETAIL_ROW: {
+                            ACTIVED,
+                            DELETED,
+                            DETAIL_ROW_REG: detailRowReg,
+                        },
+                    };
 
-          if (valueExists) {
-            throw new Error(`Ya existe un registro con VALUEID "${VALUEID}".`);
-          }
+                  const result = await mongoose.connection
+                      .collection("ZTVALUES")
+                      .insertOne(newZTValue);
 
-          if (LABELID === "IdApplications" && VALUEPAID) {
-            throw new Error(
-              "VALUEPAID debe estar vacío cuando LABELID es IdApplications, ya que no tiene padre."
-            );
-          }
+                  return {
+                      message: "ZTValue creado exitosamente sin restricciones adicionales.",
+                      ztvalueId: newZTValue,
+                  };
+              }
 
-          if (LABELID !== "IdApplications") {
-            const labelIndex = validLabels.indexOf(LABELID);
-            const parentLabel = validLabels[labelIndex - 1];
 
-            const regex = new RegExp(`^${parentLabel}-[A-Za-z0-9]+$`);
-            if (!regex.test(VALUEPAID)) {
-              throw new Error(
-                `VALUEPAID debe seguir el formato "${parentLabel}-<IdRegistro>" sin espacios alrededor del guion.`
-              );
-            }
+                // Verificar si ya existe un VALUEID en la colección
+                const valueExists = await mongoose.connection
+                  .collection("ZTVALUES")
+                  .findOne({ VALUEID });
 
-            const parentId = VALUEPAID.split("-")[1];
-            const parentExists = await mongoose.connection
-              .collection("ZTVALUES")
-              .findOne({ LABELID: parentLabel, VALUEID: parentId });
+                if (valueExists) {
+                  throw new Error(`Ya existe un registro con VALUEID "${VALUEID}".`);
+                }
 
-            if (!parentExists) {
-              throw new Error(
-                `El ID padre especificado (${parentId}) no existe en la colección ZTVALUES como ${parentLabel}.`
-              );
-            }
-          }
+                if (LABELID === "IdApplications" && VALUEPAID) {
+                  throw new Error(
+                    "VALUEPAID debe estar vacío cuando LABELID es IdApplications, ya que no tiene padre."
+                  );
+                }
 
-          const newZTValue = {
-            COMPANYID,
-            CEDIID,
-            LABELID: LABELID || "",
-            VALUEPAID: VALUEPAID || "",
-            VALUEID: VALUEID || "",
-            VALUE: VALUE || "",
-            ALIAS: ALIAS || "",
-            SEQUENCE: SEQUENCE || 0,
-            IMAGE: IMAGE || "",
-            VALUESAPID: VALUESAPID || "",
-            DESCRIPTION: DESCRIPTION || "",
-            ROUTE: ROUTE || "",
-            DETAIL_ROW: {
-              ACTIVED,
-              DELETED,
-              DETAIL_ROW_REG: detailRowReg,
-            },
-          };
+                if (LABELID !== "IdApplications") {
+                  const labelIndex = validLabels.indexOf(LABELID);
+                  const parentLabel = validLabels[labelIndex - 1];
 
-          const result = await mongoose.connection
-            .collection("ZTVALUES")
-            .insertOne(newZTValue);
+                  const regex = new RegExp(`^${parentLabel}-[A-Za-z0-9]+$`);
+                  if(validLabels.includes(LABELID)){
+                  if (!regex.test(VALUEPAID)) {
+                    throw new Error(
+                      `VALUEPAID debe seguir el formato "${parentLabel}-<IdRegistro>" sin espacios alrededor del guion.`
+                    );
+                  }
+                }
 
-          return {
-            message: "ZTValue creado exitosamente",
-            ztvalueId: newZTValue,
-          };
-        } catch (error) {
-          throw new Error(error.message);
-        }
+                  const parentId = VALUEPAID.split("-")[1];
+                  const parentExists = await mongoose.connection
+                    .collection("ZTVALUES")
+                    .findOne({ LABELID: parentLabel, VALUEID: parentId });
+
+                  if (!parentExists) {
+                    throw new Error(
+                      `El ID padre especificado (${parentId}) no existe en la colección ZTVALUES como ${parentLabel}.`
+                    );
+                  }
+                }
+
+                const newZTValue = {
+                  COMPANYID,
+                  CEDIID,
+                  LABELID: LABELID || "",
+                  VALUEPAID: VALUEPAID || "",
+                  VALUEID: VALUEID || "",
+                  VALUE: VALUE || "",
+                  ALIAS: ALIAS || "",
+                  SEQUENCE: SEQUENCE || 0,
+                  IMAGE: IMAGE || "",
+                  VALUESAPID: VALUESAPID || "",
+                  DESCRIPTION: DESCRIPTION || "",
+                  ROUTE: ROUTE || "",
+                  DETAIL_ROW: {
+                    ACTIVED,
+                    DELETED,
+                    DETAIL_ROW_REG: detailRowReg,
+                  },
+                };
+
+                const result = await mongoose.connection
+                  .collection("ZTVALUES")
+                  .insertOne(newZTValue);
+
+                return {
+                  message: "ZTValue creado exitosamente",
+                  ztvalueId: newZTValue,
+                };
+              } catch (error) {
+                throw new Error(error.message);
+              }
 
 
 
@@ -1038,13 +1067,13 @@ case "create":
             "IdPrivileges",
           ];
 
-          if (!validLabels.includes(currentLabelId)) {
-            throw new Error(
-              `LABELID debe ser uno de los siguientes: ${validLabels.join(
-                ", "
-              )}`
-            );
-          }
+          // if (!validLabels.includes(currentLabelId)) {
+          //   throw new Error(
+          //     `LABELID debe ser uno de los siguientes: ${validLabels.join(
+          //       ", "
+          //     )}`
+          //   );
+          // }
 
           if (currentLabelId === "IdApplications" && VALUEPAID) {
             throw new Error(
@@ -1527,7 +1556,7 @@ async function CrudLabels(req) {
             DESCRIPTION,
             DETAIL_ROW: [
               {
-                ACTIVED,
+                ACTIVED = true,
                 DELETED = false,
               }
             ],
