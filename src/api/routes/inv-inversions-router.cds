@@ -15,7 +15,7 @@ service PricesHistoryRouter @(path: '/api/inv') {
     // 4. Instance the prices history entity
     //entity priceshistory as projection on myph.priceshistory;
     entity entstrategies as projection on myinv.strategies;
-    entity entsimulation as projection on myinv.Simulation;
+    entity entsimulation as projection on myinv.SIMULATION;
     entity entcompany    as projection on myinv.company;
     entity entindicators as projection on myinv.Indicators;
 
@@ -25,12 +25,12 @@ service PricesHistoryRouter @(path: '/api/inv') {
     //Crud para simulaciones
     @Core.Description: 'crud-simulation'
     @path            : 'crudSimulation'
-    action crudSimulation(simulation : entsimulation) returns array of entsimulation;
+    action   crudSimulation(simulation : entsimulation) returns array of entsimulation;
 
     //Crud para strategies
     @Core.Description: 'crud-strategies'
     @path            : 'crudStrategies'
-    action crudStrategies(strategy : entstrategies)   returns array of entstrategies;
+    action   crudStrategies(strategy : entstrategies)   returns array of entstrategies;
 
     //GET para company
     @path: 'company'
@@ -38,10 +38,11 @@ service PricesHistoryRouter @(path: '/api/inv') {
 
     //GET para strategies
     @path: 'strategy'
-    function strategy(strategy : entstrategies)       returns array of entstrategies;
+    function strategy(strategy : entstrategies)         returns array of entstrategies;
 
-    //GET para strategies
-    @path: 'priceshistory'
-    function priceshistory(strategy : entstrategies)       returns array of entstrategies;
+
+    //POST para simualtion
+    @path: 'simulation'
+    action   simulation(SIMULATION : entsimulation)     returns array of entsimulation;
 
 };

@@ -232,6 +232,8 @@ async function CrudUsers(req) {
                     EXTENSION: "$USER.EXTENSION",
                     DEPARTMENT: "$USER.DEPARTMENT",
                     FUNCTION: "$USER.FUNCTION",
+                    AVATAR: "$USER.AVATAR",
+                    BALANCE: "$USER.BALANCE",
                     STREET: "$USER.STREET",
                     POSTALCODE: "$USER.POSTALCODE",
                     CITY: "$USER.CITY",
@@ -379,6 +381,7 @@ async function CrudUsers(req) {
                     _id: "$USERID",
                     USERNAME: { $first: "$USERNAME" },
                     EMAIL: { $first: "$EMAIL" },
+                    PASSWORD: { $first: "$PASSWORD" },
                     ROLES: {
                       $push: {
                         ROLEID: "$ROLES.ROLEID",
@@ -394,8 +397,22 @@ async function CrudUsers(req) {
                 },
               ])
               .toArray();
+              //Verificar contraseña es correcta
+              /*
+              const passwordIngresada = '1234e';
+              console.log(`Password ingresada: ${passwordIngresada}`);
+              if (passwordIngresada && result.length > 0) {
+                const bcrypt = require("bcrypt");
+                const hashAlmacenado = result[0].PASSWORD;
+                const isMatch = await bcrypt.compare(passwordIngresada, hashAlmacenado);
+                console.log(`¿Password correcta? ${isMatch}`);
+                // Puedes agregar el resultado al objeto de respuesta para pruebas:
+                result[0].passwordCorrecta = isMatch;
+              }*/
+              
+              
           }
-
+          
           return result;
         } catch (error) {
           throw new Error(error.message);
@@ -404,19 +421,22 @@ async function CrudUsers(req) {
         try {
           const {
             USERID,
+            PASSWORD,
             USERNAME,
             ALIAS,
             FIRSTNAME,
             LASTNAME,
+            EMAIL,
+            EXTENSION,
+            PHONENUMBER,
             BIRTHDAYDATE,
+            EMPLOYEEID,
             COMPANYID,
             COMPANYNAME,
             COMPANYALIAS,
             CEDIID,
-            EMPLOYEEID,
-            EMAIL,
-            PHONENUMBER,
-            EXTENSION,
+            AVATAR,
+            BALANCE,
             DEPARTMENT,
             FUNCTION,
             STREET,
@@ -475,25 +495,28 @@ async function CrudUsers(req) {
               missingRoles,
             };
           }
-
+        
           // Crear el nuevo objeto de usuario
           const newUser = {
             USERID,
             USERNAME,
+            PASSWORD,
             ALIAS: ALIAS || "",
             FIRSTNAME,
             LASTNAME,
+            EMPLOYEEID: EMPLOYEEID || "",
+            EXTENSION: EXTENSION || "",
+            PHONENUMBER: PHONENUMBER || "",
+            EMAIL,
             BIRTHDAYDATE: BIRTHDAYDATE || "",
+            AVATAR: AVATAR || "",
             COMPANYID: COMPANYID || "",
             COMPANYNAME: COMPANYNAME || "",
             COMPANYALIAS: COMPANYALIAS || "",
             CEDIID: CEDIID || "",
-            EMPLOYEEID: EMPLOYEEID || "",
-            EMAIL,
-            PHONENUMBER: PHONENUMBER || "",
-            EXTENSION: EXTENSION || "",
             DEPARTMENT: DEPARTMENT || "",
             FUNCTION: FUNCTION || "",
+            BALANCE: BALANCE || 0,
             STREET: STREET || "",
             POSTALCODE: POSTALCODE || "",
             CITY: CITY || "",
@@ -600,6 +623,16 @@ async function CrudUsers(req) {
               .updateOne({ USERID: userid }, { $set: otherFields });
           }
 
+          // Si se recibe un array ROLES, reemplazarlo completamente
+          if (Array.isArray(users.ROLES)) {
+            await mongoose.connection
+              .collection("ZTUSERS")
+              .updateOne(
+                { USERID: userid },
+                { $set: { ROLES: users.ROLES } }
+              );
+          }
+
           // Si no se especificó roleid pero sí se quiere agregar uno nuevo
           if (!roleid && users?.ROLES?.[0]?.ROLEID) {
             const newRoleId = users.ROLES[0].ROLEID;
@@ -613,6 +646,7 @@ async function CrudUsers(req) {
                 message: `El ROLEID '${newRoleId}' no existe en ZTROLES.`,
               };
             }
+            
 
             const userData = await mongoose.connection
               .collection("ZTUSERS")
@@ -627,17 +661,15 @@ async function CrudUsers(req) {
               };
             }
 
-            // Agrega el nuevo rol
-            await mongoose.connection.collection("ZTUSERS").updateOne(
-              { USERID: userid },
-              {
-                $push: {
-                  ROLES: {
-                    ROLEID: newRoleData.ROLEID,
-                  },
-                },
-              }
-            );
+            // Si se recibe un array ROLES, reemplazarlo completamente
+            if (Array.isArray(users.ROLES)) {
+              await mongoose.connection
+                .collection("ZTUSERS")
+                .updateOne(
+                  { USERID: userid },
+                  { $set: { ROLES: users.ROLES } }
+                );
+            }
           }
 
           return {
@@ -1167,6 +1199,7 @@ async function CrudValues(req) {
     throw new Error(error.message);
   }
 }
+
 
 async function CrudRoles(req) {
   try {
@@ -1705,6 +1738,7 @@ async function CrudLabels(req) {
     throw new Error(error.message);
   }
 }
+
 
 module.exports = {
   DeleteRecord,

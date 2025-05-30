@@ -2,12 +2,13 @@ namespace sec;
 
 entity users {
     key USERID         : String;
+        PASSWORD       : String;
         USERNAME       : String;
         ALIAS          : String;
         FIRSTNAME      : String;
         LASTNAME       : String;
         BIRTHDAYDATE   : String; // Formato "DD.MM.YYYY"
-        COMPANYID      : Integer;
+        COMPANYID      : String;
         COMPANYNAME    : String;
         COMPANYALIAS   : String;
         CEDIID         : String;
@@ -17,12 +18,14 @@ entity users {
         EXTENSION      : String;
         DEPARTMENT     : String;
         FUNCTION       : String;
+        BALANCE        : Decimal(10,2);
         STREET         : String;
         POSTALCODE     : Integer;
         CITY           : String;
         REGION         : String;
         STATE          : String;
         COUNTRY        : String;
+        AVATAR         : String;
         ROLES          : array of {
             ROLEID    : String;
             ROLEIDSAP : String;
