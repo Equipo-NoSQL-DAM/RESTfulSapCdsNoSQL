@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 const axios = require("axios");
-const SimulationModel = require("../models/mongodb/simulations");
 const API_KEY = "demo";
 const APIKEY = "demo";
 
